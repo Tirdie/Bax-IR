@@ -1,0 +1,290 @@
+{% extends "layouts/default.html" %}
+
+{% block title %} Threat Hunting {% endblock %}
+
+{% block stylesheets %}
+<style>
+  .hunt-status-active { color: #f0a500; font-weight: 600; }
+  .hunt-status-completed { color: #1a7e3e; font-weight: 600; }
+  .hunt-status-cancelled { color: #6c757d; font-weight: 600; }
+  .mitre-tag { background: #1a1a2e; color: #e94560; border-radius: 4px; padding: 2px 7px; font-size: 11px; font-family: monospace; }
+</style>
+{% endblock stylesheets %}
+
+{% block content %}
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-md-12">
+      <div class="card">
+        <div class="card-header">
+          <div class="d-flex align-items-center">
+            <h4 class="card-title mr-auto">
+              <i class="fa-solid fa-crosshairs mr-2 text-danger"></i>Threat Hunting
+            </h4>
+            <button class="btn btn-sm btn-primary" onclick="hunt_new()">
+              <i class="fa fa-plus mr-1"></i> New Hunt
+            </button>
+          </div>
+        </div>
+        <div class="card-body">
+          <!-- Stats Row -->
+          <div class="row mb-4">
+            <div class="col-md-3">
+              <div class="card card-stats card-round">
+                <div class="card-body">
+                  <div class="row align-items-center">
+                    <div class="col-icon"><div class="icon-big text-center icon-warning bubble-shadow-small"><i class="fa-solid fa-fire"></i></div></div>
+                    <div class="col col-stats ml-3 ml-sm-0">
+                      <div class="numbers"><p class="card-category">Active Hunts</p><h4 class="card-title" id="stat-active">0</h4></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card card-stats card-round">
+                <div class="card-body">
+                  <div class="row align-items-center">
+                    <div class="col-icon"><div class="icon-big text-center icon-success bubble-shadow-small"><i class="fa-solid fa-check-circle"></i></div></div>
+                    <div class="col col-stats ml-3 ml-sm-0">
+                      <div class="numbers"><p class="card-category">Completed</p><h4 class="card-title" id="stat-completed">0</h4></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card card-stats card-round">
+                <div class="card-body">
+                  <div class="row align-items-center">
+                    <div class="col-icon"><div class="icon-big text-center icon-danger bubble-shadow-small"><i class="fa-solid fa-bug"></i></div></div>
+                    <div class="col col-stats ml-3 ml-sm-0">
+                      <div class="numbers"><p class="card-category">Threats Found</p><h4 class="card-title" id="stat-found">0</h4></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div class="col-md-3">
+              <div class="card card-stats card-round">
+                <div class="card-body">
+                  <div class="row align-items-center">
+                    <div class="col-icon"><div class="icon-big text-center icon-info bubble-shadow-small"><i class="fa-solid fa-flask"></i></div></div>
+                    <div class="col col-stats ml-3 ml-sm-0">
+                      <div class="numbers"><p class="card-category">Hypotheses</p><h4 class="card-title" id="stat-hypotheses">0</h4></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Hunts Table -->
+          <table id="hunt-table" class="table table-hover table-head-bg-primary">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Hypothesis</th>
+                <th>MITRE Technique</th>
+                <th>Data Sources</th>
+                <th>Status</th>
+                <th>Outcome</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="hunt-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- New / Edit Hunt Modal -->
+<div class="modal fade" id="modal-hunt" tabindex="-1" role="dialog">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="modal-hunt-title">New Threat Hunt</h5>
+        <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="hunt-id" value="">
+        <div class="form-group">
+          <label class="font-weight-bold">Hypothesis <span class="text-danger">*</span></label>
+          <textarea class="form-control" id="hunt-hypothesis" rows="3"
+            placeholder="e.g. Adversary is using PowerShell to establish persistence via scheduled tasks..."></textarea>
+          <small class="text-muted">What are you trying to prove or disprove?</small>
+        </div>
+        <div class="row">
+          <div class="col-md-6">
+            <div class="form-group">
+              <label class="font-weight-bold">MITRE ATT&CK Technique</label>
+              <input type="text" class="form-control" id="hunt-technique" placeholder="e.g. T1053.005 - Scheduled Task">
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="form-group">
+              <label class="font-weight-bold">Data Sources</label>
+              <input type="text" class="form-control" id="hunt-datasources" placeholder="e.g. EDR, SIEM, Windows Event Logs">
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col-md-6">
+            <div class="form-group">
+              <label class="font-weight-bold">Status</label>
+              <select class="form-control" id="hunt-status">
+                <option value="active">Active</option>
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="form-group">
+              <label class="font-weight-bold">Outcome</label>
+              <select class="form-control" id="hunt-outcome">
+                <option value="">-- Pending --</option>
+                <option value="threat_found">Threat Found</option>
+                <option value="no_threat">No Threat Found</option>
+                <option value="inconclusive">Inconclusive</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="font-weight-bold">Notes / Findings</label>
+          <textarea class="form-control" id="hunt-notes" rows="4"
+            placeholder="Queries used, IOCs discovered, pivot points, conclusions..."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="hunt_save()">Save Hunt</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block javascripts %}
+<script>
+var hunts_data = [];
+
+function hunt_new() {
+  $('#hunt-id').val('');
+  $('#hunt-hypothesis').val('');
+  $('#hunt-technique').val('');
+  $('#hunt-datasources').val('');
+  $('#hunt-status').val('active');
+  $('#hunt-outcome').val('');
+  $('#hunt-notes').val('');
+  $('#modal-hunt-title').text('New Threat Hunt');
+  $('#modal-hunt').modal('show');
+}
+
+function hunt_edit(id) {
+  var hunt = hunts_data.find(h => h.id == id);
+  if (!hunt) return;
+  $('#hunt-id').val(hunt.id);
+  $('#hunt-hypothesis').val(hunt.hypothesis);
+  $('#hunt-technique').val(hunt.technique || '');
+  $('#hunt-datasources').val(hunt.data_sources || '');
+  $('#hunt-status').val(hunt.status);
+  $('#hunt-outcome').val(hunt.outcome || '');
+  $('#hunt-notes').val(hunt.notes || '');
+  $('#modal-hunt-title').text('Edit Threat Hunt #' + hunt.id);
+  $('#modal-hunt').modal('show');
+}
+
+function hunt_delete(id) {
+  swal({
+    title: "Delete this hunt?",
+    text: "This action cannot be undone.",
+    icon: "warning", buttons: true, dangerMode: true
+  }).then(function(confirmed) {
+    if (confirmed) {
+      delete_request_api('/api/threat-hunting/' + id + '?cid=' + get_caseid())
+        .done(function(data) {
+          if (notify_auto_api(data)) { hunt_load(); }
+        });
+    }
+  });
+}
+
+function hunt_save() {
+  var id = $('#hunt-id').val();
+  var hypothesis = $('#hunt-hypothesis').val().trim();
+  if (!hypothesis) { notify_error('Hypothesis is required'); return; }
+
+  var payload = {
+    hypothesis: hypothesis,
+    technique: $('#hunt-technique').val(),
+    data_sources: $('#hunt-datasources').val(),
+    status: $('#hunt-status').val(),
+    outcome: $('#hunt-outcome').val(),
+    notes: $('#hunt-notes').val()
+  };
+
+  var req = id
+    ? post_request_api('/api/threat-hunting/' + id + '?cid=' + get_caseid(), JSON.stringify(payload))
+    : post_request_api('/api/threat-hunting?cid=' + get_caseid(), JSON.stringify(payload));
+
+  req.done(function(data) {
+    if (notify_auto_api(data)) {
+      $('#modal-hunt').modal('hide');
+      hunt_load();
+    }
+  });
+}
+
+function hunt_load() {
+  get_request_api('/api/threat-hunting?cid=' + get_caseid())
+    .done(function(data) {
+      if (!notify_auto_api(data)) return;
+      hunts_data = data.data || [];
+      var tbody = $('#hunt-tbody');
+      tbody.empty();
+
+      var active = 0, completed = 0, found = 0;
+      hunts_data.forEach(function(h) {
+        if (h.status === 'active') active++;
+        if (h.status === 'completed') completed++;
+        if (h.outcome === 'threat_found') found++;
+
+        var statusHtml = '<span class="hunt-status-' + h.status + '">' + h.status.charAt(0).toUpperCase() + h.status.slice(1) + '</span>';
+        var outcomeHtml = h.outcome ? h.outcome.replace(/_/g, ' ') : '<span class="text-muted">Pending</span>';
+        var mitreHtml = h.technique ? '<span class="mitre-tag">' + h.technique + '</span>' : '<span class="text-muted">—</span>';
+
+        tbody.append('<tr>' +
+          '<td>' + h.id + '</td>' +
+          '<td>' + h.hypothesis + '</td>' +
+          '<td>' + mitreHtml + '</td>' +
+          '<td>' + (h.data_sources || '<span class="text-muted">—</span>') + '</td>' +
+          '<td>' + statusHtml + '</td>' +
+          '<td>' + outcomeHtml + '</td>' +
+          '<td>' + h.created_at + '</td>' +
+          '<td>' +
+            '<button class="btn btn-sm btn-outline-primary mr-1" onclick="hunt_edit(' + h.id + ')"><i class="fa fa-edit"></i></button>' +
+            '<button class="btn btn-sm btn-outline-danger" onclick="hunt_delete(' + h.id + ')"><i class="fa fa-trash"></i></button>' +
+          '</td>' +
+        '</tr>');
+      });
+
+      $('#stat-active').text(active);
+      $('#stat-completed').text(completed);
+      $('#stat-found').text(found);
+      $('#stat-hypotheses').text(hunts_data.length);
+
+      if ($.fn.DataTable.isDataTable('#hunt-table')) {
+        $('#hunt-table').DataTable().destroy();
+      }
+      $('#hunt-table').DataTable({ "columnDefs": [{ "orderable": false, "targets": 7 }] });
+    });
+}
+
+$(document).ready(function() { hunt_load(); });
+</script>
+{% endblock %}

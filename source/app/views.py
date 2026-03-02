@@ -97,6 +97,7 @@ from app.blueprints.rest.search_routes import search_rest_blueprint
 from app.blueprints.graphql.graphql_route import graphql_blueprint
 
 from app.blueprints.rest.v2 import rest_v2_blueprint
+from app.blueprints.threat_hunting.threat_hunting_routes import threat_hunting_blueprint
 from app.models.authorization import User
 
 def register_blusprints(app):
@@ -182,6 +183,7 @@ def register_blusprints(app):
     app.register_blueprint(demo_blueprint)
 
     app.register_blueprint(rest_v2_blueprint)
+    app.register_blueprint(threat_hunting_blueprint)
 
 
 
