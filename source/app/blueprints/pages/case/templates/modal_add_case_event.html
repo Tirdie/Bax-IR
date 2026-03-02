@@ -63,6 +63,7 @@
                                                 <span></span>
                                                 <input class="form-control col-2" type="text" id="event_tz" {% if event.event_tz %} value="{{ event.event_tz }}" {% else %} value="+00:00" {% endif %}>
                                                 <button class="btn btn-sm btn-outline-white" type="button" onclick="show_time_converter();return false;"><i class="fas fa-magic"></i></button>
+                                                <button class="btn btn-sm btn-outline-info ml-1" type="button" title="Set to now (local time)" onclick="set_event_time_now();return false;"><i class="fas fa-clock"></i> Now</button>
                                         </div>
                                         <div class="row ml-2" id="event_date_convert" style="display:none;">
                                             <div class="input-group ">
@@ -85,6 +86,9 @@
                                                     </button>
                                                     <button type="button" style="display: none;" class="btn btn-dark btn-sm float-right mr-2 mt-2"
                                                             onclick="preview_event_description();" id="event_preview_button"><i class="fa-solid fa-eye"></i></button>
+                                                    <button type="button" class="btn btn-sm btn-outline-secondary float-right mr-2 mt-2"
+                                                            onclick="paste_image_from_clipboard();" title="Paste screenshot from clipboard"><i class="fa-solid fa-clipboard"></i> Paste Image</button>
+                                                    <input type="file" id="event_desc_image_upload" accept="image/*" style="display:none;" onchange="upload_desc_image_from_file(this)">
                                             </div>
                                             <div class="row">
                                                 <div class="col mb--2 ml--2" id="event_edition_btn" style="display:none;">
@@ -258,6 +262,98 @@
 </div>
 <script>
     set_suggest_tags('event_tags');
+
+/* ---- "Now" button ---- */
+function set_event_time_now() {
+    var now = new Date();
+    var pad = function(n, z) { z = z || 2; return ('00' + n).slice(-z); };
+    var dateStr = now.getFullYear() + '-' + pad(now.getMonth()+1) + '-' + pad(now.getDate());
+    var ms = pad(now.getMilliseconds(), 3);
+    var timeStr = pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds()) + '.' + ms;
+    var offset = -now.getTimezoneOffset();
+    var sign = offset >= 0 ? '+' : '-';
+    var absOffset = Math.abs(offset);
+    var tzStr = sign + pad(Math.floor(absOffset/60)) + ':' + pad(absOffset%60);
+    $('#event_date').val(dateStr);
+    $('#event_time').val(timeStr);
+    $('#event_tz').val(tzStr);
+}
+
+/* ---- Clipboard image paste ---- */
+function upload_image_blob_to_datastore(blob) {
+    var formData = new FormData();
+    var filename = 'screenshot_' + Date.now() + '.png';
+    formData.append('file', blob, filename);
+    formData.append('file_password', '');
+    formData.append('file_is_ioc', 'false');
+    formData.append('file_description', 'Pasted screenshot');
+
+    $.ajax({
+        url: '/datastore/file/add' + case_param(),
+        type: 'POST',
+        data: formData,
+        processData: false,
+        contentType: false,
+        success: function(data) {
+            if (data.status === 'success') {
+                var fileId = data.data.file_id;
+                var mdImage = '\n![' + filename + '](/datastore/file/view/' + fileId + ')\n';
+                if (g_event_desc_editor) {
+                    var cur = g_event_desc_editor.getCursorPosition();
+                    g_event_desc_editor.session.insert(cur, mdImage);
+                }
+                notify_success('Screenshot uploaded and inserted into description');
+            } else {
+                notify_error('Upload failed: ' + (data.message || 'Unknown error'));
+            }
+        },
+        error: function() { notify_error('Failed to upload screenshot to datastore'); }
+    });
+}
+
+function paste_image_from_clipboard() {
+    navigator.clipboard.read().then(function(items) {
+        var found = false;
+        for (var i = 0; i < items.length; i++) {
+            var types = items[i].types;
+            for (var t = 0; t < types.length; t++) {
+                if (types[t].startsWith('image/')) {
+                    found = true;
+                    items[i].getType(types[t]).then(function(blob) {
+                        upload_image_blob_to_datastore(blob);
+                    });
+                    break;
+                }
+            }
+            if (found) break;
+        }
+        if (!found) {
+            notify_error('No image found in clipboard. Copy a screenshot first.');
+        }
+    }).catch(function(err) {
+        notify_error('Clipboard access denied. Try Ctrl+V directly in the editor instead.');
+    });
+}
+
+function upload_desc_image_from_file(input) {
+    if (input.files && input.files[0]) {
+        upload_image_blob_to_datastore(input.files[0]);
+    }
+}
+
+/* Also support Ctrl+V paste directly in the editor */
+document.addEventListener('paste', function(e) {
+    var modal = document.getElementById('modal_add_event');
+    if (!modal || !modal.classList.contains('show')) return;
+    var items = (e.clipboardData || e.originalEvent.clipboardData).items;
+    for (var i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+            e.preventDefault();
+            upload_image_blob_to_datastore(items[i].getAsFile());
+            break;
+        }
+    }
+});
 
 $('[data-toggle="popover"]').popover();
 $('#event_category_id').selectpicker({
