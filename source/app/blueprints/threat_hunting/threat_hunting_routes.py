@@ -1,11 +1,10 @@
 import datetime
-from flask import Blueprint, render_template, request, jsonify
+from flask import Blueprint, render_template, request
 from flask_login import login_required, current_user
 
 from app import db
 from app.models.threat_hunt import ThreatHunt
-from app.iris_engine.access_control.utils import ac_current_user_has_case_access
-from app.util import response_success, response_error, ac_case_requires_access_read
+from app.blueprints.responses import response_error, response_success
 
 threat_hunting_blueprint = Blueprint(
     'threat_hunting',
